@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Page - Fetch and Upload Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            background-color: #f5f5f5;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+        }
+        .data-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .data-label {
+            font-weight: bold;
+            color: #3498db;
+        }
+        .button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            margin-right: 10px;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .success-message {
+            color: green;
+            font-weight: bold;
+            display: none;
+            margin-top: 10px;
+        }
+        .error-message {
+            color: red;
+            font-weight: bold;
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Page - Fetch and Upload Data</h1>
+    
+    <div class="container">
+        <div class="data-item">
+            <span class="data-label">Current User UID from localStorage:</span>
+            <span id="uid-display">Not found</span>
+        </div>
+        
+        <div class="data-item">
+            <span class="data-label">Last Selected Institution ID from localStorage:</span>
+            <span id="institution-display">Not found</span>
+        </div>
+        
+        <div class="data-item">
+            <span class="data-label">Current URL Parameters:</span>
+            <span id="url-params-display">No parameters found</span>
+        </div>
+        
+        <div class="data-item">
+            <span class="data-label">Reference Parameter:</span>
+            <span id="reference-display">Not found</span>
+        </div>
+        
+        <div class="data-item">
+            <span class="data-label">Students:</span>
+            <span id="students-display">150</span>
+        </div>
+        
+        <button class="button" id="refresh-btn">Refresh Data</button>
+        <button class="button" id="upload-btn">Upload to Firebase</button>
+        
+        <p id="success-message" class="success-message">Data successfully uploaded to Firebase!</p>
+        <p id="error-message" class="error-message">Error uploading data. Please try again.</p>
+    </div>
+    
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.1/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.22.1/firebase-database-compat.min.js"></script>
+    
+    <!-- Firebase Configuration -->
+    <script src="firebase-config.js"></script>
+    
+    <script>
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Global variable to store the fetched data
+        let fetchedData = {};
+        
+        // Function to fetch and display data
+        function fetchData() {
+            // Reset messages
+            document.getElementById('success-message').style.display = 'none';
+            document.getElementById('error-message').style.display = 'none';
+            
+            // Get UID from localStorage
+            const uid = localStorage.getItem('currentUserUID');
+            document.getElementById('uid-display').textContent = uid || 'Not found';
+            
+            // Get institution ID from localStorage
+            const institutionId = localStorage.getItem('lastSelectedInstitution');
+            document.getElementById('institution-display').textContent = institutionId || 'Not found';
+            
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const params = {};
+            for (const [key, value] of urlParams.entries()) {
+                params[key] = value;
+            }
+            
+            // Display all URL parameters
+            if (Object.keys(params).length > 0) {
+                document.getElementById('url-params-display').textContent = JSON.stringify(params, null, 2);
+            } else {
+                document.getElementById('url-params-display').textContent = 'No parameters found';
+            }
+            
+            // Specifically display the reference parameter if it exists
+            const referenceParam = urlParams.get('reference');
+            document.getElementById('reference-display').textContent = referenceParam || 'Not found';
+            
+            // Prepare data for Firebase upload including the static students value
+            fetchedData = {
+                uid: uid || null,
+                institutionId: institutionId || null,
+                urlParams: params,
+                referenceParam: referenceParam || null,
+                students: 150,
+                timestamp: new Date().toISOString()
+            };
+        }
+        
+        // Function to upload data to Firebase
+        function uploadToFirebase() {
+            const uid = fetchedData.uid;
+            const institutionId = fetchedData.institutionId;
+            
+            // Check if UID exists
+            if (!uid) {
+                document.getElementById('error-message').textContent = 'Error: User UID not found. Cannot upload data.';
+                document.getElementById('error-message').style.display = 'block';
+                return;
+            }
+            
+            // Check if institution ID exists
+            if (!institutionId) {
+                document.getElementById('error-message').textContent = 'Error: Institution ID not found. Cannot upload data.';
+                document.getElementById('error-message').style.display = 'block';
+                return;
+            }
+            
+            // Create a unique key for each payment log entry
+            const paymentLogRef = database.ref(`users/${uid}/${institutionId}/payment_log`);
+            const newEntryRef = paymentLogRef.push();
+            
+            // Upload the data
+            newEntryRef.set(fetchedData)
+                .then(() => {
+                    document.getElementById('success-message').style.display = 'block';
+                    console.log('Data uploaded successfully');
+                })
+                .catch((error) => {
+                    document.getElementById('error-message').textContent = 'Error uploading data: ' + error.message;
+                    document.getElementById('error-message').style.display = 'block';
+                    console.error('Error uploading data:', error);
+                });
+        }
+        
+        // Event listeners
+        document.getElementById('refresh-btn').addEventListener('click', fetchData);
+        document.getElementById('upload-btn').addEventListener('click', uploadToFirebase);
+        
+        // Fetch data when page loads
+        window.onload = fetchData;
+    </script>
+</body>
+</html>
